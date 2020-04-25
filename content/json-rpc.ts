@@ -4,6 +4,8 @@ import * as log from './debug'
 import { KeyManager } from './key-manager'
 import { getItemsAsync } from './get-items-async'
 import { AUXScanner } from './aux-scanner'
+import { Translators } from './translators'
+import { Preferences as Prefs } from './prefs'
 
 const OK = 200
 
@@ -137,6 +139,32 @@ class Item {
 
     log.debug(KeyManager.keys.data)
     return keys
+  }
+
+  public async export(citekeys: string[], translator: string, libraryID: number = Zotero.Libraries.userLibraryID) {
+    const query = { libraryID, citekey: { $in: citekeys } }
+
+    if (Prefs.get('keyScope') === 'global') {
+      if (typeof libraryID === 'number') throw { code: INVALID_PARAMETERS, message: 'keyscope is global, do not provide a library ID' }
+      delete query.libraryID
+    } else {
+      if (typeof libraryID !== 'number') throw { code: INVALID_PARAMETERS, message: 'keyscope is per-library, you should provide a library ID' }
+    }
+
+    const found = KeyManager.keys.find(query)
+    if (found.length !== citekeys.length) {
+      const keysfound = found.map(key => key.citekey)
+      throw { code: INVALID_PARAMETERS, message: citekeys.filter(key => !keysfound.includes(key)).join(', ') + ' not found' }
+    }
+
+    translator = translator.replace(/\s/g, '')
+    const _translator = translator.toLowerCase()
+    for (const [label, meta] of Object.entries(Translators.byLabel)) {
+      const _label = label.toLowerCase()
+      if (_label === _translator || _label.replace(/^better/, '') === _translator) translator = meta.translatorID
+    }
+
+    return [OK, 'text/plain', await Translators.exportItems(translator, null, { type: 'items', items: await getItemsAsync(found.map(key => key.itemID)) }) ]
   }
 }
 

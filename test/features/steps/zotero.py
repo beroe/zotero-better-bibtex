@@ -13,6 +13,7 @@ import tempfile
 from munch import *
 from steps.utils import running, nested_dict_iter, benchmark, ROOT, assert_equal_diff, serialize, html2md, post_log
 from steps.library import load as Library
+from steps.bbtjsonschema import validate as validate_bbt_json
 import steps.utils as utils
 import shutil
 import shlex
@@ -293,6 +294,9 @@ class Zotero:
           dmp = diff_match_patch()
           data = dmp.patch_apply(dmp.patch_fromText(f.read()), data)[0]
 
+    if path.endswith('.json') and not (path.endswith('.csl.json') or path.endswith('.schomd.json')):
+      validate_bbt_json(data)
+
     self.loaded(loaded)
     return (data, loaded)
 
@@ -314,6 +318,7 @@ class Zotero:
 
   def export_library(self, translator, displayOptions = {}, collection = None, output = None, expected = None, resetCache = False):
     assert not displayOptions.get('keepUpdated', False) or output # Auto-export needs a destination
+    displayOptions['Normalize'] = True
 
     if translator.startswith('id:'):
       translator = translator[len('id:'):]
@@ -518,7 +523,8 @@ class Zotero:
           profile.firefox.firefox.set_preference(p, v)
 
     if not self.config.first_run:
-      profile.firefox.set_preference('extensions.zotero.translators.better-bibtex.citekeyFormat', '[auth][shorttitle][year]')
+      # force stripping of the pattern
+      profile.firefox.set_preference('extensions.zotero.translators.better-bibtex.citekeyFormat', "[=forumPost/WebPage][Auth:lower:capitalize][Date:format-date=%Y-%m-%d.%H\\:%M\\:%S:prefix=.][PublicationTitle1_1:lower:capitalize:prefix=.][shorttitle3_3:lower:capitalize:prefix=.][Pages:prefix=.p.][Volume:prefix=.Vol.][NumberofVolumes:prefix=de] | [Auth:lower:capitalize][date:%oY:prefix=.][PublicationTitle1_1:lower:capitalize:prefix=.][shorttitle3_3:lower:capitalize:prefix=.][Pages:prefix=.p.][Volume:prefix=.Vol.][NumberofVolumes:prefix=de]")
 
     if self.client == 'jurism':
       utils.print('\n\n** WORKAROUNDS FOR JURIS-M IN PLACE -- SEE https://github.com/Juris-M/zotero/issues/34 **\n\n')
